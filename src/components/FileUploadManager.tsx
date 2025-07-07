@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { Card, Button, Form, Row, Col, Alert, Badge, Table, Pagination, InputGroup } from 'react-bootstrap';
+import { useForm, Controller, SubmitHandler } from 'react-hook-form';
 import { FileUpload, Transaction, PaginatedResponse, FileUploadSearchParams } from '../types';
 import { Upload, FileText, Check, X, AlertCircle, Download, ArrowUpRight, ArrowDownRight, Eye, EyeOff, MessageCircle, CheckCircle, XCircle, ChevronLeft, ChevronRight, Search, Filter, Loader } from 'lucide-react';
 
@@ -11,6 +13,27 @@ interface FileUploadManagerProps {
   userRole: string;
 }
 
+interface UploadFormData {
+  source: 'bank' | 'system';
+  organization: string;
+  schedule: string;
+  remarks: string;
+}
+
+interface ApprovalFormData {
+  status: 'approve' | 'reject' | '';
+  comments: string;
+  rejectionReason: string;
+}
+
+interface SearchFormData {
+  searchTerm: string;
+  organization: string;
+  schedule: string;
+  status: string;
+  pageSize: number;
+}
+
 const FileUploadManager: React.FC<FileUploadManagerProps> = ({
   fileUploads,
   onFileUpload,
@@ -20,14 +43,9 @@ const FileUploadManager: React.FC<FileUploadManagerProps> = ({
   userRole
 }) => {
   const [dragActive, setDragActive] = useState(false);
-  const [selectedSource, setSelectedSource] = useState<'bank' | 'system'>('bank');
-  const [selectedOrganization, setSelectedOrganization] = useState('');
-  const [selectedSchedule, setSelectedSchedule] = useState('');
-  const [uploadRemarks, setUploadRemarks] = useState('');
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [showTransactions, setShowTransactions] = useState<string | null>(null);
-  const [approvalComments, setApprovalComments] = useState<{ [key: string]: string }>({});
-  const [rejectionReasons, setRejectionReasons] = useState<{ [key: string]: string }>({});
+  const [showFilters, setShowFilters] = useState(false);
   
   // Search and pagination state
   const [searchParams, setSearchParams] = useState<FileUploadSearchParams>({
@@ -40,8 +58,34 @@ const FileUploadManager: React.FC<FileUploadManagerProps> = ({
   });
   const [paginatedData, setPaginatedData] = useState<PaginatedResponse<FileUpload> | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [showFilters, setShowFilters] = useState(false);
+
+  // Form instances
+  const uploadForm = useForm<UploadFormData>({
+    defaultValues: {
+      source: 'bank',
+      organization: '',
+      schedule: '',
+      remarks: ''
+    }
+  });
+
+  const searchForm = useForm<SearchFormData>({
+    defaultValues: {
+      searchTerm: '',
+      organization: 'all',
+      schedule: 'all',
+      status: 'all',
+      pageSize: 10
+    }
+  });
+
+  const approvalForms = useForm<ApprovalFormData>({
+    defaultValues: {
+      status: '',
+      comments: '',
+      rejectionReason: ''
+    }
+  });
 
   // Organization options
   const organizationOptions = [
@@ -93,41 +137,35 @@ const FileUploadManager: React.FC<FileUploadManagerProps> = ({
     debouncedSearch(searchParams);
   }, [searchParams, debouncedSearch]);
 
-  // Handle search input change
-  const handleSearchChange = (value: string) => {
-    setSearchTerm(value);
+  // Handle search form submission
+  const handleSearchSubmit: SubmitHandler<SearchFormData> = (data) => {
     setSearchParams(prev => ({
       ...prev,
-      searchTerm: value,
-      page: 1 // Reset to first page on new search
-    }));
-  };
-
-  // Handle filter changes
-  const handleFilterChange = (key: keyof FileUploadSearchParams, value: any) => {
-    setSearchParams(prev => ({
-      ...prev,
-      [key]: value,
-      page: 1 // Reset to first page on filter change
+      searchTerm: data.searchTerm,
+      organization: data.organization === 'all' ? 'all' : data.organization,
+      schedule: data.schedule === 'all' ? 'all' : data.schedule,
+      status: data.status as any,
+      pageSize: data.pageSize,
+      page: 1
     }));
   };
 
   // Handle page change
   const handlePageChange = (page: number) => {
     setSearchParams(prev => ({ ...prev, page }));
-    // Close any open details when changing pages
     setSelectedFile(null);
     setShowTransactions(null);
   };
 
-  // Handle page size change
-  const handlePageSizeChange = (pageSize: number) => {
-    setSearchParams(prev => ({ ...prev, pageSize, page: 1 }));
-  };
-
   // Clear all filters
   const clearFilters = () => {
-    setSearchTerm('');
+    searchForm.reset({
+      searchTerm: '',
+      organization: 'all',
+      schedule: 'all',
+      status: 'all',
+      pageSize: searchParams.pageSize
+    });
     setSearchParams({
       page: 1,
       pageSize: searchParams.pageSize,
@@ -159,19 +197,24 @@ const FileUploadManager: React.FC<FileUploadManagerProps> = ({
   };
 
   const handleFileUpload = (file: File) => {
-    if (!selectedOrganization || !selectedSchedule) {
+    const formData = uploadForm.getValues();
+    
+    if (!formData.organization || !formData.schedule) {
       alert('Please select both organization and schedule before uploading');
       return;
     }
 
     if (file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || 
         file.type === 'application/vnd.ms-excel') {
-      onFileUpload(file, selectedSource, selectedOrganization, selectedSchedule, uploadRemarks || undefined);
+      onFileUpload(file, formData.source, formData.organization, formData.schedule, formData.remarks || undefined);
       
       // Reset form after successful upload
-      setSelectedOrganization('');
-      setSelectedSchedule('');
-      setUploadRemarks('');
+      uploadForm.reset({
+        source: 'bank',
+        organization: '',
+        schedule: '',
+        remarks: ''
+      });
       
       // Refresh search results
       performSearch(searchParams);
@@ -186,8 +229,11 @@ const FileUploadManager: React.FC<FileUploadManagerProps> = ({
     }
   };
 
+  const handleUploadSubmit: SubmitHandler<UploadFormData> = (data) => {
+    // This is handled by file input change
+  };
+
   const handleDownloadFile = (file: FileUpload) => {
-    // Create a mock Excel file with the transaction data
     const csvContent = generateCSVContent(file.transactions);
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
@@ -213,7 +259,7 @@ const FileUploadManager: React.FC<FileUploadManagerProps> = ({
         transaction.date,
         transaction.transId || '',
         transaction.amount.toString(),
-        `"${transaction.description.replace(/"/g, '""')}"`, // Escape quotes in description
+        `"${transaction.description.replace(/"/g, '""')}"`,
         transaction.type,
         transaction.reference
       ];
@@ -223,40 +269,26 @@ const FileUploadManager: React.FC<FileUploadManagerProps> = ({
     return csvRows.join('\n');
   };
 
-  const handleApprove = (fileId: string) => {
-    const comments = approvalComments[fileId];
-    onApproveFile(fileId, comments || undefined);
-    setApprovalComments(prev => ({ ...prev, [fileId]: '' }));
-    setSelectedFile(null);
-    // Refresh search results
-    performSearch(searchParams);
-  };
+  const handleApprovalSubmit: SubmitHandler<ApprovalFormData> = (data) => {
+    if (!selectedFile) return;
 
-  const handleReject = (fileId: string) => {
-    const reason = rejectionReasons[fileId];
-    if (!reason?.trim()) {
-      alert('Please provide a rejection reason');
-      return;
+    if (data.status === 'approve') {
+      onApproveFile(selectedFile, data.comments || undefined);
+    } else if (data.status === 'reject' && data.rejectionReason.trim()) {
+      onRejectFile(selectedFile, data.rejectionReason);
     }
-    onRejectFile(fileId, reason);
-    setRejectionReasons(prev => ({ ...prev, [fileId]: '' }));
+    
     setSelectedFile(null);
-    // Refresh search results
+    approvalForms.reset();
     performSearch(searchParams);
-  };
-
-  const updateApprovalComments = (fileId: string, comments: string) => {
-    setApprovalComments(prev => ({ ...prev, [fileId]: comments }));
-  };
-
-  const updateRejectionReason = (fileId: string, reason: string) => {
-    setRejectionReasons(prev => ({ ...prev, [fileId]: reason }));
   };
 
   const canUpload = userRole === 'maker' || userRole === 'admin';
   const canApprove = userRole === 'checker' || userRole === 'admin';
 
   const pendingFiles = fileUploads.filter(file => file.status === 'pending_approval');
+  const watchedApprovalStatus = approvalForms.watch('status');
+  const watchedRejectionReason = approvalForms.watch('rejectionReason');
 
   const StatusBadge: React.FC<{ status: string; className?: string }> = ({ status, className = "" }) => {
     const getStatusConfig = (status: string) => {
@@ -264,22 +296,22 @@ const FileUploadManager: React.FC<FileUploadManagerProps> = ({
         case 'approved':
           return {
             icon: CheckCircle,
-            badgeClass: 'badge bg-success'
+            variant: 'success' as const
           };
         case 'rejected':
           return {
             icon: XCircle,
-            badgeClass: 'badge bg-danger'
+            variant: 'danger' as const
           };
         case 'pending_approval':
           return {
             icon: AlertCircle,
-            badgeClass: 'badge bg-warning text-dark'
+            variant: 'warning' as const
           };
         default:
           return {
             icon: AlertCircle,
-            badgeClass: 'badge bg-secondary'
+            variant: 'secondary' as const
           };
       }
     };
@@ -288,69 +320,67 @@ const FileUploadManager: React.FC<FileUploadManagerProps> = ({
     const Icon = config.icon;
 
     return (
-      <span className={`${config.badgeClass} d-inline-flex align-items-center ${className}`}>
+      <Badge bg={config.variant} className={`d-inline-flex align-items-center ${className}`}>
         <Icon className="me-1" size={12} />
         {status.replace('_', ' ').toUpperCase()}
-      </span>
+      </Badge>
     );
   };
 
   const TransactionTable: React.FC<{ transactions: Transaction[] }> = ({ transactions }) => (
     <div className="mt-3">
-      <div className="table-responsive">
-        <table className="table table-sm">
-          <thead className="table-light">
-            <tr>
-              <th>Account ID</th>
-              <th>Transaction ID</th>
-              <th>Date</th>
-              <th>Description</th>
-              <th>Type</th>
-              <th className="text-end">Amount</th>
-              <th>Reference</th>
-            </tr>
-          </thead>
-          <tbody>
-            {transactions.map((transaction, index) => (
-              <tr key={transaction.id}>
-                <td className="fw-medium">{transaction.accountId}</td>
-                <td>{transaction.transId}</td>
-                <td>{new Date(transaction.date).toLocaleDateString()}</td>
-                <td className="text-truncate" style={{ maxWidth: '200px' }}>
-                  {transaction.description}
-                </td>
-                <td>
-                  <div className="d-flex align-items-center">
-                    {transaction.type === 'credit' ? (
-                      <ArrowUpRight className="text-success me-1" size={16} />
-                    ) : (
-                      <ArrowDownRight className="text-danger me-1" size={16} />
-                    )}
-                    <span className={`fw-medium ${
-                      transaction.type === 'credit' ? 'text-success' : 'text-danger'
-                    }`}>
-                      {transaction.type.charAt(0).toUpperCase() + transaction.type.slice(1)}
-                    </span>
-                  </div>
-                </td>
-                <td className="text-end">
-                  <span className={`fw-bold ${
+      <Table responsive size="sm">
+        <thead className="table-light">
+          <tr>
+            <th>Account ID</th>
+            <th>Transaction ID</th>
+            <th>Date</th>
+            <th>Description</th>
+            <th>Type</th>
+            <th className="text-end">Amount</th>
+            <th>Reference</th>
+          </tr>
+        </thead>
+        <tbody>
+          {transactions.map((transaction, index) => (
+            <tr key={transaction.id}>
+              <td className="fw-medium">{transaction.accountId}</td>
+              <td>{transaction.transId}</td>
+              <td>{new Date(transaction.date).toLocaleDateString()}</td>
+              <td className="text-truncate" style={{ maxWidth: '200px' }}>
+                {transaction.description}
+              </td>
+              <td>
+                <div className="d-flex align-items-center">
+                  {transaction.type === 'credit' ? (
+                    <ArrowUpRight className="text-success me-1" size={16} />
+                  ) : (
+                    <ArrowDownRight className="text-danger me-1" size={16} />
+                  )}
+                  <span className={`fw-medium ${
                     transaction.type === 'credit' ? 'text-success' : 'text-danger'
                   }`}>
-                    {transaction.type === 'credit' ? '+' : '-'}${transaction.amount.toFixed(2)}
+                    {transaction.type.charAt(0).toUpperCase() + transaction.type.slice(1)}
                   </span>
-                </td>
-                <td>{transaction.reference}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        {transactions.length === 0 && (
-          <div className="text-center py-4 text-muted">
-            No transactions found in this file.
-          </div>
-        )}
-      </div>
+                </div>
+              </td>
+              <td className="text-end">
+                <span className={`fw-bold ${
+                  transaction.type === 'credit' ? 'text-success' : 'text-danger'
+                }`}>
+                  {transaction.type === 'credit' ? '+' : '-'}${transaction.amount.toFixed(2)}
+                </span>
+              </td>
+              <td>{transaction.reference}</td>
+            </tr>
+          ))}
+        </tbody>
+      </Table>
+      {transactions.length === 0 && (
+        <div className="text-center py-4 text-muted">
+          No transactions found in this file.
+        </div>
+      )}
     </div>
   );
 
@@ -379,40 +409,27 @@ const FileUploadManager: React.FC<FileUploadManagerProps> = ({
     };
 
     return (
-      <nav aria-label="File pagination">
-        <ul className="pagination pagination-sm justify-content-center mb-0">
-          <li className={`page-item ${!pagination.hasPreviousPage ? 'disabled' : ''}`}>
-            <button
-              className="page-link"
-              onClick={() => handlePageChange(pagination.currentPage - 1)}
-              disabled={!pagination.hasPreviousPage}
-            >
-              <ChevronLeft size={16} />
-            </button>
-          </li>
-          
-          {getPageNumbers().map(page => (
-            <li key={page} className={`page-item ${pagination.currentPage === page ? 'active' : ''}`}>
-              <button
-                className="page-link"
-                onClick={() => handlePageChange(page)}
-              >
-                {page}
-              </button>
-            </li>
-          ))}
-          
-          <li className={`page-item ${!pagination.hasNextPage ? 'disabled' : ''}`}>
-            <button
-              className="page-link"
-              onClick={() => handlePageChange(pagination.currentPage + 1)}
-              disabled={!pagination.hasNextPage}
-            >
-              <ChevronRight size={16} />
-            </button>
-          </li>
-        </ul>
-      </nav>
+      <Pagination className="justify-content-center mb-0" size="sm">
+        <Pagination.Prev
+          onClick={() => handlePageChange(pagination.currentPage - 1)}
+          disabled={!pagination.hasPreviousPage}
+        />
+        
+        {getPageNumbers().map(page => (
+          <Pagination.Item
+            key={page}
+            active={pagination.currentPage === page}
+            onClick={() => handlePageChange(page)}
+          >
+            {page}
+          </Pagination.Item>
+        ))}
+        
+        <Pagination.Next
+          onClick={() => handlePageChange(pagination.currentPage + 1)}
+          disabled={!pagination.hasNextPage}
+        />
+      </Pagination>
     );
   };
 
@@ -420,258 +437,316 @@ const FileUploadManager: React.FC<FileUploadManagerProps> = ({
     <div className="container-fluid">
       {/* File Upload Section */}
       {canUpload && (
-        <div className="card mb-4">
-          <div className="card-header bg-white">
-            <h5 className="card-title mb-0">Upload Transaction File</h5>
-          </div>
-          <div className="card-body">
-            <div className="row g-3 mb-4">
-              <div className="col-md-6">
-                <label className="form-label fw-medium">Transaction Source *</label>
-                <div className="d-flex gap-3">
-                  <div className="form-check">
-                    <input
-                      className="form-check-input"
-                      type="radio"
-                      value="bank"
-                      checked={selectedSource === 'bank'}
-                      onChange={(e) => setSelectedSource(e.target.value as 'bank' | 'system')}
-                      id="source-bank"
+        <Card className="mb-4">
+          <Card.Header className="bg-white">
+            <Card.Title className="mb-0">Upload Transaction File</Card.Title>
+          </Card.Header>
+          <Card.Body>
+            <Form onSubmit={uploadForm.handleSubmit(handleUploadSubmit)}>
+              <Row className="g-3 mb-4">
+                <Col md={6}>
+                  <Form.Group>
+                    <Form.Label className="fw-medium">Transaction Source *</Form.Label>
+                    <Controller
+                      name="source"
+                      control={uploadForm.control}
+                      rules={{ required: 'Transaction source is required' }}
+                      render={({ field }) => (
+                        <div className="d-flex gap-3">
+                          <Form.Check
+                            type="radio"
+                            id="source-bank"
+                            label="Bank Transactions"
+                            value="bank"
+                            checked={field.value === 'bank'}
+                            onChange={() => field.onChange('bank')}
+                          />
+                          <Form.Check
+                            type="radio"
+                            id="source-system"
+                            label="System Transactions"
+                            value="system"
+                            checked={field.value === 'system'}
+                            onChange={() => field.onChange('system')}
+                          />
+                        </div>
+                      )}
                     />
-                    <label className="form-check-label" htmlFor="source-bank">
-                      Bank Transactions
-                    </label>
-                  </div>
-                  <div className="form-check">
-                    <input
-                      className="form-check-input"
-                      type="radio"
-                      value="system"
-                      checked={selectedSource === 'system'}
-                      onChange={(e) => setSelectedSource(e.target.value as 'bank' | 'system')}
-                      id="source-system"
+                  </Form.Group>
+                </Col>
+
+                <Col md={6}>
+                  <Form.Group>
+                    <Form.Label className="fw-medium">Organization *</Form.Label>
+                    <Controller
+                      name="organization"
+                      control={uploadForm.control}
+                      rules={{ required: 'Organization is required' }}
+                      render={({ field }) => (
+                        <Form.Select
+                          isInvalid={!!uploadForm.formState.errors.organization}
+                          {...field}
+                        >
+                          <option value="">Select Organization</option>
+                          {organizationOptions.map(org => (
+                            <option key={org} value={org}>{org}</option>
+                          ))}
+                        </Form.Select>
+                      )}
                     />
-                    <label className="form-check-label" htmlFor="source-system">
-                      System Transactions
-                    </label>
-                  </div>
-                </div>
-              </div>
+                    <Form.Control.Feedback type="invalid">
+                      {uploadForm.formState.errors.organization?.message}
+                    </Form.Control.Feedback>
+                  </Form.Group>
+                </Col>
 
-              <div className="col-md-6">
-                <label htmlFor="organization" className="form-label fw-medium">
-                  Organization *
-                </label>
-                <select
-                  id="organization"
-                  value={selectedOrganization}
-                  onChange={(e) => setSelectedOrganization(e.target.value)}
-                  className="form-select"
-                  required
-                >
-                  <option value="">Select Organization</option>
-                  {organizationOptions.map(org => (
-                    <option key={org} value={org}>{org}</option>
-                  ))}
-                </select>
-              </div>
+                <Col md={6}>
+                  <Form.Group>
+                    <Form.Label className="fw-medium">Schedule *</Form.Label>
+                    <Controller
+                      name="schedule"
+                      control={uploadForm.control}
+                      rules={{ required: 'Schedule is required' }}
+                      render={({ field }) => (
+                        <Form.Select
+                          isInvalid={!!uploadForm.formState.errors.schedule}
+                          {...field}
+                        >
+                          <option value="">Select Schedule</option>
+                          {scheduleOptions.map(schedule => (
+                            <option key={schedule} value={schedule}>{schedule}</option>
+                          ))}
+                        </Form.Select>
+                      )}
+                    />
+                    <Form.Control.Feedback type="invalid">
+                      {uploadForm.formState.errors.schedule?.message}
+                    </Form.Control.Feedback>
+                  </Form.Group>
+                </Col>
 
-              <div className="col-md-6">
-                <label htmlFor="schedule" className="form-label fw-medium">
-                  Schedule *
-                </label>
-                <select
-                  id="schedule"
-                  value={selectedSchedule}
-                  onChange={(e) => setSelectedSchedule(e.target.value)}
-                  className="form-select"
-                  required
-                >
-                  <option value="">Select Schedule</option>
-                  {scheduleOptions.map(schedule => (
-                    <option key={schedule} value={schedule}>{schedule}</option>
-                  ))}
-                </select>
-              </div>
+                <Col md={6}>
+                  <Form.Group>
+                    <Form.Label className="fw-medium">Remarks (Optional)</Form.Label>
+                    <Controller
+                      name="remarks"
+                      control={uploadForm.control}
+                      render={({ field }) => (
+                        <Form.Control
+                          as="textarea"
+                          rows={3}
+                          placeholder="Add any additional notes or comments about this upload..."
+                          {...field}
+                        />
+                      )}
+                    />
+                  </Form.Group>
+                </Col>
+              </Row>
 
-              <div className="col-md-6">
-                <label htmlFor="uploadRemarks" className="form-label fw-medium">
-                  Remarks (Optional)
-                </label>
-                <textarea
-                  id="uploadRemarks"
-                  value={uploadRemarks}
-                  onChange={(e) => setUploadRemarks(e.target.value)}
-                  rows={3}
-                  className="form-control"
-                  placeholder="Add any additional notes or comments about this upload..."
+              <div
+                className={`file-upload-zone p-5 text-center ${dragActive ? 'drag-active' : ''}`}
+                onDragEnter={handleDrag}
+                onDragLeave={handleDrag}
+                onDragOver={handleDrag}
+                onDrop={handleDrop}
+              >
+                <Upload className="text-muted mb-3" size={48} />
+                <h6 className="mb-2">Drop your Excel file here, or click to browse</h6>
+                <p className="text-muted mb-3">
+                  Supports .xlsx and .xls files with columns: accountId, transactionDate, transId, amount, description, type
+                </p>
+                <Form.Control
+                  type="file"
+                  accept=".xlsx,.xls"
+                  onChange={handleFileInputChange}
+                  className="d-none"
+                  id="file-upload"
                 />
+                <Button as="label" htmlFor="file-upload" variant="primary">
+                  Choose File
+                </Button>
               </div>
-            </div>
 
-            <div
-              className={`file-upload-zone p-5 text-center ${dragActive ? 'drag-active' : ''}`}
-              onDragEnter={handleDrag}
-              onDragLeave={handleDrag}
-              onDragOver={handleDrag}
-              onDrop={handleDrop}
-            >
-              <Upload className="text-muted mb-3" size={48} />
-              <h6 className="mb-2">Drop your Excel file here, or click to browse</h6>
-              <p className="text-muted mb-3">
-                Supports .xlsx and .xls files with columns: accountId, transactionDate, transId, amount, description, type
-              </p>
-              <input
-                type="file"
-                accept=".xlsx,.xls"
-                onChange={handleFileInputChange}
-                className="d-none"
-                id="file-upload"
-              />
-              <label htmlFor="file-upload" className="btn btn-primary">
-                Choose File
-              </label>
-            </div>
-
-            <div className="alert alert-info mt-3">
-              <h6 className="alert-heading">Excel File Format Requirements:</h6>
-              <ul className="mb-0 small">
-                <li><strong>accountId:</strong> Account identifier</li>
-                <li><strong>transactionDate:</strong> Date in YYYY-MM-DD format</li>
-                <li><strong>transId:</strong> Unique transaction ID</li>
-                <li><strong>amount:</strong> Transaction amount (positive number)</li>
-                <li><strong>description:</strong> Transaction description</li>
-                <li><strong>type:</strong> Either "credit" or "debit"</li>
-              </ul>
-            </div>
-          </div>
-        </div>
+              <Alert variant="info" className="mt-3">
+                <h6 className="alert-heading">Excel File Format Requirements:</h6>
+                <ul className="mb-0 small">
+                  <li><strong>accountId:</strong> Account identifier</li>
+                  <li><strong>transactionDate:</strong> Date in YYYY-MM-DD format</li>
+                  <li><strong>transId:</strong> Unique transaction ID</li>
+                  <li><strong>amount:</strong> Transaction amount (positive number)</li>
+                  <li><strong>description:</strong> Transaction description</li>
+                  <li><strong>type:</strong> Either "credit" or "debit"</li>
+                </ul>
+              </Alert>
+            </Form>
+          </Card.Body>
+        </Card>
       )}
 
       {/* File Approval Queue */}
-      <div className="card">
-        <div className="card-header bg-white">
+      <Card>
+        <Card.Header className="bg-white">
           <div className="d-flex justify-content-between align-items-center mb-3">
             <div>
-              <h5 className="card-title mb-1">File Approval Queue</h5>
-              <p className="card-text small text-muted mb-0">
+              <Card.Title className="mb-1">File Approval Queue</Card.Title>
+              <Card.Text className="small text-muted mb-0">
                 {pendingFiles.length} file{pendingFiles.length !== 1 ? 's' : ''} pending approval
-              </p>
+              </Card.Text>
             </div>
             
-            <button
+            <Button
+              variant="outline-primary"
+              size="sm"
               onClick={() => setShowFilters(!showFilters)}
-              className="btn btn-outline-primary btn-sm d-flex align-items-center"
+              className="d-flex align-items-center"
             >
               <Filter className="me-1" size={16} />
               {showFilters ? 'Hide Filters' : 'Show Filters'}
-            </button>
+            </Button>
           </div>
 
-          {/* Search Bar */}
-          <div className="row g-3 mb-3">
-            <div className="col-md-8">
-              <div className="input-group">
-                <span className="input-group-text">
-                  <Search size={16} />
-                </span>
-                <input
-                  type="text"
-                  className="form-control"
-                  placeholder="Search by filename, uploader, organization, schedule, or remarks..."
-                  value={searchTerm}
-                  onChange={(e) => handleSearchChange(e.target.value)}
-                />
-                {searchTerm && (
-                  <button
-                    className="btn btn-outline-secondary"
-                    type="button"
-                    onClick={() => handleSearchChange('')}
-                  >
-                    <X size={16} />
-                  </button>
-                )}
-              </div>
-            </div>
-            <div className="col-md-4">
-              <div className="d-flex align-items-center gap-2">
-                <label htmlFor="pageSize" className="form-label small mb-0 text-nowrap">Show:</label>
-                <select
-                  id="pageSize"
-                  value={searchParams.pageSize}
-                  onChange={(e) => handlePageSizeChange(Number(e.target.value))}
-                  className="form-select form-select-sm"
-                >
-                  <option value={5}>5</option>
-                  <option value={10}>10</option>
-                  <option value={20}>20</option>
-                  <option value={50}>50</option>
-                </select>
-              </div>
-            </div>
-          </div>
+          {/* Search and Filter Form */}
+          <Form onSubmit={searchForm.handleSubmit(handleSearchSubmit)}>
+            <Row className="g-3 mb-3">
+              <Col md={8}>
+                <InputGroup>
+                  <InputGroup.Text>
+                    <Search size={16} />
+                  </InputGroup.Text>
+                  <Controller
+                    name="searchTerm"
+                    control={searchForm.control}
+                    render={({ field }) => (
+                      <Form.Control
+                        type="text"
+                        placeholder="Search by filename, uploader, organization, schedule, or remarks..."
+                        {...field}
+                      />
+                    )}
+                  />
+                  {searchForm.watch('searchTerm') && (
+                    <Button
+                      variant="outline-secondary"
+                      onClick={() => {
+                        searchForm.setValue('searchTerm', '');
+                        searchForm.handleSubmit(handleSearchSubmit)();
+                      }}
+                    >
+                      <X size={16} />
+                    </Button>
+                  )}
+                </InputGroup>
+              </Col>
+              <Col md={4}>
+                <div className="d-flex align-items-center gap-2">
+                  <Form.Label className="small mb-0 text-nowrap">Show:</Form.Label>
+                  <Controller
+                    name="pageSize"
+                    control={searchForm.control}
+                    render={({ field }) => (
+                      <Form.Select
+                        size="sm"
+                        {...field}
+                        onChange={(e) => {
+                          field.onChange(Number(e.target.value));
+                          searchForm.handleSubmit(handleSearchSubmit)();
+                        }}
+                      >
+                        <option value={5}>5</option>
+                        <option value={10}>10</option>
+                        <option value={20}>20</option>
+                        <option value={50}>50</option>
+                      </Form.Select>
+                    )}
+                  />
+                </div>
+              </Col>
+            </Row>
 
-          {/* Advanced Filters */}
-          {showFilters && (
-            <div className="row g-3 mb-3 p-3 bg-light rounded">
-              <div className="col-md-3">
-                <label htmlFor="organizationFilter" className="form-label small mb-1">Organization:</label>
-                <select
-                  id="organizationFilter"
-                  value={searchParams.organization || 'all'}
-                  onChange={(e) => handleFilterChange('organization', e.target.value === 'all' ? undefined : e.target.value)}
-                  className="form-select form-select-sm"
-                >
-                  <option value="all">All Organizations</option>
-                  {organizationOptions.map(org => (
-                    <option key={org} value={org}>{org}</option>
-                  ))}
-                </select>
-              </div>
-              
-              <div className="col-md-3">
-                <label htmlFor="scheduleFilter" className="form-label small mb-1">Schedule:</label>
-                <select
-                  id="scheduleFilter"
-                  value={searchParams.schedule || 'all'}
-                  onChange={(e) => handleFilterChange('schedule', e.target.value === 'all' ? undefined : e.target.value)}
-                  className="form-select form-select-sm"
-                >
-                  <option value="all">All Schedules</option>
-                  {scheduleOptions.map(schedule => (
-                    <option key={schedule} value={schedule}>{schedule}</option>
-                  ))}
-                </select>
-              </div>
-              
-              <div className="col-md-3">
-                <label htmlFor="statusFilter" className="form-label small mb-1">Status:</label>
-                <select
-                  id="statusFilter"
-                  value={searchParams.status || 'all'}
-                  onChange={(e) => handleFilterChange('status', e.target.value as any)}
-                  className="form-select form-select-sm"
-                >
-                  <option value="all">All Statuses</option>
-                  <option value="pending_approval">Pending</option>
-                  <option value="approved">Approved</option>
-                  <option value="rejected">Rejected</option>
-                </select>
-              </div>
-              
-              <div className="col-md-3 d-flex align-items-end">
-                <button
-                  onClick={clearFilters}
-                  className="btn btn-outline-secondary btn-sm w-100"
-                >
-                  Clear Filters
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
+            {/* Advanced Filters */}
+            {showFilters && (
+              <Row className="g-3 mb-3 p-3 bg-light rounded">
+                <Col md={3}>
+                  <Form.Group>
+                    <Form.Label className="small mb-1">Organization:</Form.Label>
+                    <Controller
+                      name="organization"
+                      control={searchForm.control}
+                      render={({ field }) => (
+                        <Form.Select size="sm" {...field}>
+                          <option value="all">All Organizations</option>
+                          {organizationOptions.map(org => (
+                            <option key={org} value={org}>{org}</option>
+                          ))}
+                        </Form.Select>
+                      )}
+                    />
+                  </Form.Group>
+                </Col>
+                
+                <Col md={3}>
+                  <Form.Group>
+                    <Form.Label className="small mb-1">Schedule:</Form.Label>
+                    <Controller
+                      name="schedule"
+                      control={searchForm.control}
+                      render={({ field }) => (
+                        <Form.Select size="sm" {...field}>
+                          <option value="all">All Schedules</option>
+                          {scheduleOptions.map(schedule => (
+                            <option key={schedule} value={schedule}>{schedule}</option>
+                          ))}
+                        </Form.Select>
+                      )}
+                    />
+                  </Form.Group>
+                </Col>
+                
+                <Col md={3}>
+                  <Form.Group>
+                    <Form.Label className="small mb-1">Status:</Form.Label>
+                    <Controller
+                      name="status"
+                      control={searchForm.control}
+                      render={({ field }) => (
+                        <Form.Select size="sm" {...field}>
+                          <option value="all">All Statuses</option>
+                          <option value="pending_approval">Pending</option>
+                          <option value="approved">Approved</option>
+                          <option value="rejected">Rejected</option>
+                        </Form.Select>
+                      )}
+                    />
+                  </Form.Group>
+                </Col>
+                
+                <Col md={3} className="d-flex align-items-end">
+                  <div className="d-flex gap-2 w-100">
+                    <Button
+                      variant="outline-secondary"
+                      size="sm"
+                      type="button"
+                      onClick={clearFilters}
+                      className="flex-grow-1"
+                    >
+                      Clear Filters
+                    </Button>
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      type="submit"
+                    >
+                      Search
+                    </Button>
+                  </div>
+                </Col>
+              </Row>
+            )}
+          </Form>
+        </Card.Header>
 
-        <div className="card-body p-0">
+        <Card.Body className="p-0">
           {isLoading ? (
             <div className="text-center py-5">
               <Loader className="text-primary mb-3 spinner-border" size={48} />
@@ -688,9 +763,9 @@ const FileUploadManager: React.FC<FileUploadManagerProps> = ({
                   : 'Upload Excel files to begin the reconciliation process.'}
               </p>
               {(searchParams.searchTerm || searchParams.organization !== 'all' || searchParams.schedule !== 'all' || searchParams.status !== 'all') && (
-                <button onClick={clearFilters} className="btn btn-outline-primary btn-sm">
+                <Button variant="outline-primary" size="sm" onClick={clearFilters}>
                   Clear All Filters
-                </button>
+                </Button>
               )}
             </div>
           ) : (
@@ -720,17 +795,21 @@ const FileUploadManager: React.FC<FileUploadManagerProps> = ({
                         </div>
                         <div className="d-flex align-items-center gap-2">
                           <StatusBadge status={file.status} />
-                          <button
+                          <Button
+                            variant="outline-success"
+                            size="sm"
                             onClick={() => handleDownloadFile(file)}
-                            className="btn btn-outline-success btn-sm d-flex align-items-center"
+                            className="d-flex align-items-center"
                             title="Download file"
                           >
                             <Download className="me-1" size={14} />
                             Download
-                          </button>
-                          <button
+                          </Button>
+                          <Button
+                            variant="outline-primary"
+                            size="sm"
                             onClick={() => setShowTransactions(showingTransactions ? null : file.id)}
-                            className="btn btn-outline-primary btn-sm d-flex align-items-center"
+                            className="d-flex align-items-center"
                           >
                             {showingTransactions ? (
                               <>
@@ -743,21 +822,20 @@ const FileUploadManager: React.FC<FileUploadManagerProps> = ({
                                 View
                               </>
                             )}
-                          </button>
-                          <button
+                          </Button>
+                          <Button
+                            variant="outline-secondary"
+                            size="sm"
                             onClick={() => setSelectedFile(isSelected ? null : file.id)}
-                            className="btn btn-outline-secondary btn-sm"
                           >
                             {isSelected ? 'Hide Details' : 'Details'}
-                          </button>
+                          </Button>
                         </div>
                       </div>
 
                       {/* Approval/Rejection Remarks Display */}
                       {(file.status === 'approved' || file.status === 'rejected') && (
-                        <div className={`alert ${
-                          file.status === 'approved' ? 'alert-success' : 'alert-danger'
-                        } mb-3`}>
+                        <Alert variant={file.status === 'approved' ? 'success' : 'danger'} className="mb-3">
                           <div className="d-flex align-items-start">
                             {file.status === 'approved' ? (
                               <CheckCircle className="me-2 mt-1" size={20} />
@@ -774,13 +852,13 @@ const FileUploadManager: React.FC<FileUploadManagerProps> = ({
                                 </small>
                               </div>
                               {file.rejectionReason && (
-                                <div className="alert alert-light border mb-0">
+                                <Alert variant="light" className="border mb-0">
                                   <strong>Reason:</strong> {file.rejectionReason}
-                                </div>
+                                </Alert>
                               )}
                             </div>
                           </div>
-                        </div>
+                        </Alert>
                       )}
 
                       {showingTransactions && (
@@ -794,8 +872,8 @@ const FileUploadManager: React.FC<FileUploadManagerProps> = ({
 
                       {isSelected && (
                         <div className="mt-3">
-                          <div className="row g-3 mb-4">
-                            <div className="col-md-4">
+                          <Row className="g-3 mb-4">
+                            <Col md={4}>
                               <div className="p-3 bg-light rounded">
                                 <h6 className="fw-medium mb-2">File Details</h6>
                                 <div className="small">
@@ -806,80 +884,149 @@ const FileUploadManager: React.FC<FileUploadManagerProps> = ({
                                   <p className="mb-0"><span className="fw-medium">Uploaded:</span> {new Date(file.uploadedAt).toLocaleString()}</p>
                                 </div>
                               </div>
-                            </div>
+                            </Col>
 
                             {file.remarks && (
-                              <div className="col-md-8">
+                              <Col md={8}>
                                 <div className="p-3 bg-light rounded">
                                   <h6 className="fw-medium mb-2">Upload Remarks</h6>
                                   <p className="mb-0 small">{file.remarks}</p>
                                 </div>
-                              </div>
+                              </Col>
                             )}
-                          </div>
+                          </Row>
 
-                          {/* Approval Form - Always show for pending files when user can approve */}
+                          {/* Approval Form */}
                           {file.status === 'pending_approval' && canApprove && (
-                            <div className="border-top pt-4 bg-light p-3 rounded">
-                              <h6 className="mb-3">File Approval</h6>
-                              
-                              <div className="mb-3">
-                                <label htmlFor={`approval-comments-${file.id}`} className="form-label fw-medium">
-                                  Approval Comments (Optional)
-                                </label>
-                                <textarea
-                                  id={`approval-comments-${file.id}`}
-                                  value={approvalComments[file.id] || ''}
-                                  onChange={(e) => updateApprovalComments(file.id, e.target.value)}
-                                  rows={3}
-                                  className="form-control"
-                                  placeholder="Add any comments for this approval..."
-                                />
-                              </div>
+                            <Card className="border-top pt-4">
+                              <Card.Body className="bg-light">
+                                <h6 className="mb-3">File Approval</h6>
+                                
+                                <Form onSubmit={approvalForms.handleSubmit(handleApprovalSubmit)}>
+                                  <Row className="g-3">
+                                    <Col md={6}>
+                                      <Form.Group className="mb-3">
+                                        <Form.Label className="fw-medium">
+                                          Action *
+                                        </Form.Label>
+                                        <Controller
+                                          name="status"
+                                          control={approvalForms.control}
+                                          rules={{ required: 'Please select an action' }}
+                                          render={({ field }) => (
+                                            <Form.Select
+                                              isInvalid={!!approvalForms.formState.errors.status}
+                                              {...field}
+                                            >
+                                              <option value="">Select Action</option>
+                                              <option value="approve">Approve</option>
+                                              <option value="reject">Reject</option>
+                                            </Form.Select>
+                                          )}
+                                        />
+                                        <Form.Control.Feedback type="invalid">
+                                          {approvalForms.formState.errors.status?.message}
+                                        </Form.Control.Feedback>
+                                      </Form.Group>
+                                    </Col>
 
-                              <div className="mb-3">
-                                <label htmlFor={`rejection-reason-${file.id}`} className="form-label fw-medium">
-                                  Rejection Reason (Required if rejecting)
-                                </label>
-                                <textarea
-                                  id={`rejection-reason-${file.id}`}
-                                  value={rejectionReasons[file.id] || ''}
-                                  onChange={(e) => updateRejectionReason(file.id, e.target.value)}
-                                  rows={3}
-                                  className="form-control"
-                                  placeholder="Provide detailed reason for rejection..."
-                                />
-                              </div>
+                                    <Col md={6}>
+                                      <Form.Group className="mb-3">
+                                        <Form.Label className="fw-medium">
+                                          Comments {watchedApprovalStatus === 'approve' ? '(Optional)' : ''}
+                                        </Form.Label>
+                                        <Controller
+                                          name="comments"
+                                          control={approvalForms.control}
+                                          render={({ field }) => (
+                                            <Form.Control
+                                              as="textarea"
+                                              rows={2}
+                                              placeholder="Add any comments..."
+                                              {...field}
+                                            />
+                                          )}
+                                        />
+                                      </Form.Group>
+                                    </Col>
 
-                              <div className="d-flex justify-content-end gap-2">
-                                <button
-                                  onClick={() => handleReject(file.id)}
-                                  disabled={!rejectionReasons[file.id]?.trim()}
-                                  className="btn btn-danger d-flex align-items-center"
-                                >
-                                  <X className="me-1" size={16} />
-                                  Reject File
-                                </button>
-                                <button
-                                  onClick={() => handleApprove(file.id)}
-                                  className="btn btn-success d-flex align-items-center"
-                                >
-                                  <Check className="me-1" size={16} />
-                                  Approve File
-                                </button>
-                              </div>
-                            </div>
+                                    {watchedApprovalStatus === 'reject' && (
+                                      <Col md={12}>
+                                        <Form.Group className="mb-3">
+                                          <Form.Label className="fw-medium">
+                                            Rejection Reason *
+                                          </Form.Label>
+                                          <Controller
+                                            name="rejectionReason"
+                                            control={approvalForms.control}
+                                            rules={{
+                                              required: watchedApprovalStatus === 'reject' ? 'Rejection reason is required' : false
+                                            }}
+                                            render={({ field }) => (
+                                              <Form.Control
+                                                as="textarea"
+                                                rows={3}
+                                                placeholder="Provide detailed reason for rejection..."
+                                                isInvalid={!!approvalForms.formState.errors.rejectionReason}
+                                                {...field}
+                                              />
+                                            )}
+                                          />
+                                          <Form.Control.Feedback type="invalid">
+                                            {approvalForms.formState.errors.rejectionReason?.message}
+                                          </Form.Control.Feedback>
+                                        </Form.Group>
+                                      </Col>
+                                    )}
+
+                                    <Col md={12}>
+                                      <div className="d-flex justify-content-end gap-2">
+                                        <Button
+                                          variant="outline-secondary"
+                                          onClick={() => {
+                                            setSelectedFile(null);
+                                            approvalForms.reset();
+                                          }}
+                                        >
+                                          Cancel
+                                        </Button>
+                                        <Button
+                                          variant={watchedApprovalStatus === 'reject' ? 'danger' : 'success'}
+                                          type="submit"
+                                          disabled={
+                                            !watchedApprovalStatus || 
+                                            (watchedApprovalStatus === 'reject' && !watchedRejectionReason?.trim())
+                                          }
+                                        >
+                                          {watchedApprovalStatus === 'reject' ? (
+                                            <>
+                                              <X className="me-1" size={16} />
+                                              Reject File
+                                            </>
+                                          ) : (
+                                            <>
+                                              <Check className="me-1" size={16} />
+                                              Approve File
+                                            </>
+                                          )}
+                                        </Button>
+                                      </div>
+                                    </Col>
+                                  </Row>
+                                </Form>
+                              </Card.Body>
+                            </Card>
                           )}
 
                           {file.status === 'pending_approval' && !canApprove && (
-                            <div className="alert alert-warning">
+                            <Alert variant="warning">
                               <div className="d-flex align-items-center">
                                 <AlertCircle className="me-2" size={20} />
                                 <p className="mb-0">
                                   You need checker or admin role to approve file uploads.
                                 </p>
                               </div>
-                            </div>
+                            </Alert>
                           )}
                         </div>
                       )}
@@ -890,19 +1037,19 @@ const FileUploadManager: React.FC<FileUploadManagerProps> = ({
               
               {/* Pagination Footer */}
               {paginatedData && paginatedData.pagination.totalPages > 1 && (
-                <div className="card-footer bg-white border-top">
+                <Card.Footer className="bg-white border-top">
                   <div className="d-flex justify-content-between align-items-center">
                     <div className="text-muted small">
                       Showing {((paginatedData.pagination.currentPage - 1) * paginatedData.pagination.pageSize) + 1} to {Math.min(paginatedData.pagination.currentPage * paginatedData.pagination.pageSize, paginatedData.pagination.totalItems)} of {paginatedData.pagination.totalItems} files
                     </div>
                     <PaginationControls />
                   </div>
-                </div>
+                </Card.Footer>
               )}
             </>
           )}
-        </div>
-      </div>
+        </Card.Body>
+      </Card>
     </div>
   );
 };
