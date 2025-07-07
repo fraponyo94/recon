@@ -70,58 +70,58 @@ export const ReconciliationForm: React.FC<ReconciliationFormProps> = ({
       </Card.Header>
       
       <Card.Body>
+        <Row className="g-3 mb-4">
+          <Col md={6}>
+            <h6 className="fw-medium mb-3">Bank Transaction</h6>
+            <div className="p-3 bg-light rounded">
+              <p className="fw-medium mb-1">{bankTransaction.description}</p>
+              <p className="small text-muted mb-2">
+                {bankTransaction.reference} • {new Date(bankTransaction.date).toLocaleDateString()}
+              </p>
+              <p className={`h5 fw-bold mb-0 ${
+                bankTransaction.type === 'credit' ? 'text-success' : 'text-danger'
+              }`}>
+                {bankTransaction.type === 'credit' ? '+' : '-'}${bankTransaction.amount.toFixed(2)}
+              </p>
+            </div>
+          </Col>
+
+          <Col md={6}>
+            <h6 className="fw-medium mb-3">System Transaction</h6>
+            <div className="p-3 bg-light rounded">
+              <p className="fw-medium mb-1">{systemTransaction.description}</p>
+              <p className="small text-muted mb-2">
+                {systemTransaction.reference} • {new Date(systemTransaction.date).toLocaleDateString()}
+              </p>
+              <p className={`h5 fw-bold mb-0 ${
+                systemTransaction.type === 'credit' ? 'text-success' : 'text-danger'
+              }`}>
+                {systemTransaction.type === 'credit' ? '+' : '-'}${systemTransaction.amount.toFixed(2)}
+              </p>
+            </div>
+          </Col>
+        </Row>
+
+        <Alert 
+          variant={canMatch ? 'success' : 'danger'} 
+          className="d-flex align-items-center mb-4"
+        >
+          {canMatch ? (
+            <Check className="me-2" size={20} />
+          ) : (
+            <X className="me-2" size={20} />
+          )}
+          <span className="fw-medium">
+            {canMatch ? 'Transactions Match' : 'Transactions Do Not Match'}
+          </span>
+          {!canMatch && (
+            <div className="ms-auto">
+              <small>Amount, type, or other criteria do not match between the selected transactions.</small>
+            </div>
+          )}
+        </Alert>
+
         <Form onSubmit={handleSubmit(handleFormSubmit)}>
-          <Row className="g-3 mb-4">
-            <Col md={6}>
-              <h6 className="fw-medium mb-3">Bank Transaction</h6>
-              <div className="p-3 bg-light rounded">
-                <p className="fw-medium mb-1">{bankTransaction.description}</p>
-                <p className="small text-muted mb-2">
-                  {bankTransaction.reference} • {new Date(bankTransaction.date).toLocaleDateString()}
-                </p>
-                <p className={`h5 fw-bold mb-0 ${
-                  bankTransaction.type === 'credit' ? 'text-success' : 'text-danger'
-                }`}>
-                  {bankTransaction.type === 'credit' ? '+' : '-'}${bankTransaction.amount.toFixed(2)}
-                </p>
-              </div>
-            </Col>
-
-            <Col md={6}>
-              <h6 className="fw-medium mb-3">System Transaction</h6>
-              <div className="p-3 bg-light rounded">
-                <p className="fw-medium mb-1">{systemTransaction.description}</p>
-                <p className="small text-muted mb-2">
-                  {systemTransaction.reference} • {new Date(systemTransaction.date).toLocaleDateString()}
-                </p>
-                <p className={`h5 fw-bold mb-0 ${
-                  systemTransaction.type === 'credit' ? 'text-success' : 'text-danger'
-                }`}>
-                  {systemTransaction.type === 'credit' ? '+' : '-'}${systemTransaction.amount.toFixed(2)}
-                </p>
-              </div>
-            </Col>
-          </Row>
-
-          <Alert 
-            variant={canMatch ? 'success' : 'danger'} 
-            className="d-flex align-items-center mb-4"
-          >
-            {canMatch ? (
-              <Check className="me-2" size={20} />
-            ) : (
-              <X className="me-2" size={20} />
-            )}
-            <span className="fw-medium">
-              {canMatch ? 'Transactions Match' : 'Transactions Do Not Match'}
-            </span>
-            {!canMatch && (
-              <div className="ms-auto">
-                <small>Amount, type, or other criteria do not match between the selected transactions.</small>
-              </div>
-            )}
-          </Alert>
-
           <Form.Group className="mb-4">
             <Form.Label className="fw-medium">
               Comments (Optional)
@@ -143,6 +143,7 @@ export const ReconciliationForm: React.FC<ReconciliationFormProps> = ({
           <div className="d-flex justify-content-end gap-2">
             <Button
               variant="outline-secondary"
+              type="button"
               onClick={onCancel}
             >
               Cancel

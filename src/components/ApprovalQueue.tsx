@@ -16,6 +16,7 @@ interface ApprovalQueueProps {
 interface ApprovalFormData {
   comments: string;
   rejectionReason: string;
+  status: 'approve' | 'reject' | '';
 }
 
 export const ApprovalQueue: React.FC<ApprovalQueueProps> = ({
@@ -30,7 +31,8 @@ export const ApprovalQueue: React.FC<ApprovalQueueProps> = ({
   const { control, handleSubmit, reset, watch, formState: { errors } } = useForm<ApprovalFormData>({
     defaultValues: {
       comments: '',
-      rejectionReason: ''
+      rejectionReason: '',
+      status: ''
     }
   });
 
@@ -42,23 +44,22 @@ export const ApprovalQueue: React.FC<ApprovalQueueProps> = ({
   const getSystemTransaction = (id: string) => 
     systemTransactions.find(t => t.id === id);
 
-  const handleApprove: SubmitHandler<ApprovalFormData> = (data) => {
-    if (selectedEntry) {
-      onApprove(selectedEntry, data.comments || undefined);
-      setSelectedEntry(null);
-      reset();
-    }
-  };
+  const handleFormSubmit: SubmitHandler<ApprovalFormData> = (data) => {
+    if (!selectedEntry) return;
 
-  const handleReject: SubmitHandler<ApprovalFormData> = (data) => {
-    if (selectedEntry && data.rejectionReason.trim()) {
+    if (data.status === 'approve') {
+      onApprove(selectedEntry, data.comments || undefined);
+    } else if (data.status === 'reject' && data.rejectionReason.trim()) {
       onReject(selectedEntry, data.rejectionReason);
-      setSelectedEntry(null);
-      reset();
     }
+    
+    setSelectedEntry(null);
+    reset();
   };
 
   const canApprove = userRole === 'checker' || userRole === 'admin';
+  const watchedStatus = watch('status');
+  const watchedRejectionReason = watch('rejectionReason');
 
   const StatusBadge: React.FC<{ status: string; className?: string }> = ({ status, className = "" }) => {
     const getStatusConfig = (status: string) => {
@@ -96,8 +97,6 @@ export const ApprovalQueue: React.FC<ApprovalQueueProps> = ({
       </Badge>
     );
   };
-
-  const rejectionReason = watch('rejectionReason');
 
   return (
     <Card>
@@ -233,73 +232,122 @@ export const ApprovalQueue: React.FC<ApprovalQueueProps> = ({
                       )}
 
                       {canApprove && entry.status === 'pending_approval' && (
-                        <div className="border-top pt-4">
-                          <Form onSubmit={handleSubmit(handleApprove)}>
-                            <Form.Group className="mb-3">
-                              <Form.Label className="fw-medium">
-                                Approval Comments (Optional)
-                              </Form.Label>
-                              <Controller
-                                name="comments"
-                                control={control}
-                                render={({ field }) => (
-                                  <Form.Control
-                                    as="textarea"
-                                    rows={2}
-                                    placeholder="Add any comments for this approval..."
-                                    {...field}
-                                  />
-                                )}
-                              />
-                            </Form.Group>
+                        <Card className="border-top pt-4">
+                          <Card.Body>
+                            <Form onSubmit={handleSubmit(handleFormSubmit)}>
+                              <Row className="g-3">
+                                <Col md={6}>
+                                  <Form.Group className="mb-3">
+                                    <Form.Label className="fw-medium">
+                                      Action *
+                                    </Form.Label>
+                                    <Controller
+                                      name="status"
+                                      control={control}
+                                      rules={{ required: 'Please select an action' }}
+                                      render={({ field }) => (
+                                        <Form.Select
+                                          isInvalid={!!errors.status}
+                                          {...field}
+                                        >
+                                          <option value="">Select Action</option>
+                                          <option value="approve">Approve</option>
+                                          <option value="reject">Reject</option>
+                                        </Form.Select>
+                                      )}
+                                    />
+                                    <Form.Control.Feedback type="invalid">
+                                      {errors.status?.message}
+                                    </Form.Control.Feedback>
+                                  </Form.Group>
+                                </Col>
 
-                            <Form.Group className="mb-3">
-                              <Form.Label className="fw-medium">
-                                Rejection Reason (Required if rejecting)
-                              </Form.Label>
-                              <Controller
-                                name="rejectionReason"
-                                control={control}
-                                rules={{
-                                  validate: (value) => {
-                                    // Only validate if we're trying to reject
-                                    return true;
-                                  }
-                                }}
-                                render={({ field }) => (
-                                  <Form.Control
-                                    as="textarea"
-                                    rows={2}
-                                    placeholder="Provide detailed reason for rejection..."
-                                    isInvalid={!!errors.rejectionReason}
-                                    {...field}
-                                  />
-                                )}
-                              />
-                              <Form.Control.Feedback type="invalid">
-                                {errors.rejectionReason?.message}
-                              </Form.Control.Feedback>
-                            </Form.Group>
+                                <Col md={6}>
+                                  <Form.Group className="mb-3">
+                                    <Form.Label className="fw-medium">
+                                      Comments {watchedStatus === 'approve' ? '(Optional)' : ''}
+                                    </Form.Label>
+                                    <Controller
+                                      name="comments"
+                                      control={control}
+                                      render={({ field }) => (
+                                        <Form.Control
+                                          as="textarea"
+                                          rows={2}
+                                          placeholder="Add any comments..."
+                                          {...field}
+                                        />
+                                      )}
+                                    />
+                                  </Form.Group>
+                                </Col>
 
-                            <div className="d-flex justify-content-end gap-2">
-                              <Button
-                                variant="danger"
-                                disabled={!rejectionReason?.trim()}
-                                onClick={handleSubmit(handleReject)}
-                              >
-                                <X className="me-1" size={16} />
-                                Reject
-                              </Button>
-                              <Button
-                                variant="success"
-                                type="submit"
-                              >
-                                <Check className="me-1" size={16} />
-                                Approve
-                              </Button>
-                            </div>
-                          </Form>
-                        </div>
+                                {watchedStatus === 'reject' && (
+                                  <Col md={12}>
+                                    <Form.Group className="mb-3">
+                                      <Form.Label className="fw-medium">
+                                        Rejection Reason *
+                                      </Form.Label>
+                                      <Controller
+                                        name="rejectionReason"
+                                        control={control}
+                                        rules={{
+                                          required: watchedStatus === 'reject' ? 'Rejection reason is required' : false
+                                        }}
+                                        render={({ field }) => (
+                                          <Form.Control
+                                            as="textarea"
+                                            rows={3}
+                                            placeholder="Provide detailed reason for rejection..."
+                                            isInvalid={!!errors.rejectionReason}
+                                            {...field}
+                                          />
+                                        )}
+                                      />
+                                      <Form.Control.Feedback type="invalid">
+                                        {errors.rejectionReason?.message}
+                                      </Form.Control.Feedback>
+                                    </Form.Group>
+                                  </Col>
+                                )}
+
+                                <Col md={12}>
+                                  <div className="d-flex justify-content-end gap-2">
+                                    <Button
+                                      variant="outline-secondary"
+                                      onClick={() => {
+                                        setSelectedEntry(null);
+                                        reset();
+                                      }}
+                                    >
+                                      Cancel
+                                    </Button>
+                                    <Button
+                                      variant={watchedStatus === 'reject' ? 'danger' : 'success'}
+                                      type="submit"
+                                      disabled={
+                                        !watchedStatus || 
+                                        (watchedStatus === 'reject' && !watchedRejectionReason?.trim())
+                                      }
+                                    >
+                                      {watchedStatus === 'reject' ? (
+                                        <>
+                                          <X className="me-1" size={16} />
+                                          Reject
+                                        </>
+                                      ) : (
+                                        <>
+                                          <Check className="me-1" size={16} />
+                                          Approve
+                                        </>
+                                      )}
+                                    </Button>
+                                  </div>
+                                </Col>
+                              </Row>
+                            </Form>
+                          </Card.Body>
+                        </Card>
                       )}
 
                       {!canApprove && entry.status === 'pending_approval' && (

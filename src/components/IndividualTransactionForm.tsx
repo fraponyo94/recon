@@ -304,6 +304,7 @@ export const IndividualTransactionForm: React.FC<IndividualTransactionFormProps>
             <div className="d-flex justify-content-end gap-2">
               <Button
                 variant="outline-secondary"
+                type="button"
                 onClick={handleCancel}
               >
                 Cancel
