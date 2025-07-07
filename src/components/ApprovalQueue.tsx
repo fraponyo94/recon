@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { Card, Button, Alert, Badge, Form, Row, Col } from 'react-bootstrap';
+import { useForm, Controller, SubmitHandler } from 'react-hook-form';
 import { ReconciliationEntry, Transaction } from '../types';
 import { Check, X, MessageSquare, CheckCircle, XCircle, AlertCircle, MessageCircle } from 'lucide-react';
 
@@ -11,6 +13,11 @@ interface ApprovalQueueProps {
   userRole: string;
 }
 
+interface ApprovalFormData {
+  comments: string;
+  rejectionReason: string;
+}
+
 export const ApprovalQueue: React.FC<ApprovalQueueProps> = ({
   entries,
   bankTransactions,
@@ -20,8 +27,12 @@ export const ApprovalQueue: React.FC<ApprovalQueueProps> = ({
   userRole
 }) => {
   const [selectedEntry, setSelectedEntry] = useState<string | null>(null);
-  const [actionComments, setActionComments] = useState('');
-  const [rejectionReason, setRejectionReason] = useState('');
+  const { control, handleSubmit, reset, watch, formState: { errors } } = useForm<ApprovalFormData>({
+    defaultValues: {
+      comments: '',
+      rejectionReason: ''
+    }
+  });
 
   const pendingEntries = entries.filter(entry => entry.status === 'pending_approval');
 
@@ -31,17 +42,20 @@ export const ApprovalQueue: React.FC<ApprovalQueueProps> = ({
   const getSystemTransaction = (id: string) => 
     systemTransactions.find(t => t.id === id);
 
-  const handleApprove = (entryId: string) => {
-    onApprove(entryId, actionComments || undefined);
-    setSelectedEntry(null);
-    setActionComments('');
+  const handleApprove: SubmitHandler<ApprovalFormData> = (data) => {
+    if (selectedEntry) {
+      onApprove(selectedEntry, data.comments || undefined);
+      setSelectedEntry(null);
+      reset();
+    }
   };
 
-  const handleReject = (entryId: string) => {
-    if (!rejectionReason.trim()) return;
-    onReject(entryId, rejectionReason);
-    setSelectedEntry(null);
-    setRejectionReason('');
+  const handleReject: SubmitHandler<ApprovalFormData> = (data) => {
+    if (selectedEntry && data.rejectionReason.trim()) {
+      onReject(selectedEntry, data.rejectionReason);
+      setSelectedEntry(null);
+      reset();
+    }
   };
 
   const canApprove = userRole === 'checker' || userRole === 'admin';
@@ -52,22 +66,22 @@ export const ApprovalQueue: React.FC<ApprovalQueueProps> = ({
         case 'approved':
           return {
             icon: CheckCircle,
-            badgeClass: 'badge bg-success'
+            variant: 'success' as const
           };
         case 'rejected':
           return {
             icon: XCircle,
-            badgeClass: 'badge bg-danger'
+            variant: 'danger' as const
           };
         case 'pending_approval':
           return {
             icon: AlertCircle,
-            badgeClass: 'badge bg-warning text-dark'
+            variant: 'warning' as const
           };
         default:
           return {
             icon: AlertCircle,
-            badgeClass: 'badge bg-secondary'
+            variant: 'secondary' as const
           };
       }
     };
@@ -76,23 +90,25 @@ export const ApprovalQueue: React.FC<ApprovalQueueProps> = ({
     const Icon = config.icon;
 
     return (
-      <span className={`${config.badgeClass} d-inline-flex align-items-center ${className}`}>
+      <Badge bg={config.variant} className={`d-inline-flex align-items-center ${className}`}>
         <Icon className="me-1" size={12} />
         {status.replace('_', ' ').toUpperCase()}
-      </span>
+      </Badge>
     );
   };
 
-  return (
-    <div className="card">
-      <div className="card-header bg-white">
-        <h5 className="card-title mb-1">Approval Queue</h5>
-        <p className="card-text small text-muted mb-0">
-          {pendingEntries.length} reconciliation{pendingEntries.length !== 1 ? 's' : ''} pending approval
-        </p>
-      </div>
+  const rejectionReason = watch('rejectionReason');
 
-      <div className="card-body p-0">
+  return (
+    <Card>
+      <Card.Header className="bg-white">
+        <Card.Title className="mb-1">Approval Queue</Card.Title>
+        <Card.Text className="small text-muted mb-0">
+          {pendingEntries.length} reconciliation{pendingEntries.length !== 1 ? 's' : ''} pending approval
+        </Card.Text>
+      </Card.Header>
+
+      <Card.Body className="p-0">
         {entries.length === 0 ? (
           <div className="text-center py-5">
             <MessageSquare className="text-muted mb-3" size={48} />
@@ -119,20 +135,19 @@ export const ApprovalQueue: React.FC<ApprovalQueueProps> = ({
                     </div>
                     <div className="d-flex align-items-center gap-2">
                       <StatusBadge status={entry.status} />
-                      <button
+                      <Button
+                        variant="outline-primary"
+                        size="sm"
                         onClick={() => setSelectedEntry(isSelected ? null : entry.id)}
-                        className="btn btn-outline-primary btn-sm"
                       >
                         {isSelected ? 'Hide Details' : 'View Details'}
-                      </button>
+                      </Button>
                     </div>
                   </div>
 
                   {/* Approval/Rejection Remarks Display */}
                   {(entry.status === 'approved' || entry.status === 'rejected') && (
-                    <div className={`alert ${
-                      entry.status === 'approved' ? 'alert-success' : 'alert-danger'
-                    } mb-3`}>
+                    <Alert variant={entry.status === 'approved' ? 'success' : 'danger'} className="mb-3">
                       <div className="d-flex align-items-start">
                         {entry.status === 'approved' ? (
                           <CheckCircle className="me-2 mt-1" size={20} />
@@ -149,24 +164,24 @@ export const ApprovalQueue: React.FC<ApprovalQueueProps> = ({
                             </small>
                           </div>
                           {entry.rejectionReason && (
-                            <div className="alert alert-light border mb-0">
+                            <Alert variant="light" className="border mb-0">
                               <strong>Reason:</strong> {entry.rejectionReason}
-                            </div>
+                            </Alert>
                           )}
                           {entry.status === 'approved' && entry.comments && (
-                            <div className="alert alert-light border mb-0">
+                            <Alert variant="light" className="border mb-0">
                               <strong>Comments:</strong> {entry.comments}
-                            </div>
+                            </Alert>
                           )}
                         </div>
                       </div>
-                    </div>
+                    </Alert>
                   )}
 
                   {isSelected && (
                     <div className="mt-3">
-                      <div className="row g-3 mb-4">
-                        <div className="col-md-6">
+                      <Row className="g-3 mb-4">
+                        <Col md={6}>
                           <div className="p-3 bg-light rounded">
                             <h6 className="fw-medium mb-2">Bank Transaction</h6>
                             {bankTxn && (
@@ -183,9 +198,9 @@ export const ApprovalQueue: React.FC<ApprovalQueueProps> = ({
                               </div>
                             )}
                           </div>
-                        </div>
+                        </Col>
 
-                        <div className="col-md-6">
+                        <Col md={6}>
                           <div className="p-3 bg-light rounded">
                             <h6 className="fw-medium mb-2">System Transaction</h6>
                             {systemTxn && (
@@ -202,11 +217,11 @@ export const ApprovalQueue: React.FC<ApprovalQueueProps> = ({
                               </div>
                             )}
                           </div>
-                        </div>
-                      </div>
+                        </Col>
+                      </Row>
 
                       {entry.comments && entry.status === 'pending_approval' && (
-                        <div className="alert alert-info mb-4">
+                        <Alert variant="info" className="mb-4">
                           <div className="d-flex align-items-start">
                             <MessageCircle className="me-2 mt-1" size={16} />
                             <div>
@@ -214,68 +229,88 @@ export const ApprovalQueue: React.FC<ApprovalQueueProps> = ({
                               <p className="mb-0 small">{entry.comments}</p>
                             </div>
                           </div>
-                        </div>
+                        </Alert>
                       )}
 
                       {canApprove && entry.status === 'pending_approval' && (
                         <div className="border-top pt-4">
-                          <div className="mb-3">
-                            <label htmlFor="actionComments" className="form-label fw-medium">
-                              Approval Comments (Optional)
-                            </label>
-                            <textarea
-                              id="actionComments"
-                              value={actionComments}
-                              onChange={(e) => setActionComments(e.target.value)}
-                              rows={2}
-                              className="form-control"
-                              placeholder="Add any comments for this approval..."
-                            />
-                          </div>
+                          <Form onSubmit={handleSubmit(handleApprove)}>
+                            <Form.Group className="mb-3">
+                              <Form.Label className="fw-medium">
+                                Approval Comments (Optional)
+                              </Form.Label>
+                              <Controller
+                                name="comments"
+                                control={control}
+                                render={({ field }) => (
+                                  <Form.Control
+                                    as="textarea"
+                                    rows={2}
+                                    placeholder="Add any comments for this approval..."
+                                    {...field}
+                                  />
+                                )}
+                              />
+                            </Form.Group>
 
-                          <div className="mb-3">
-                            <label htmlFor="rejectionReason" className="form-label fw-medium">
-                              Rejection Reason (Required if rejecting)
-                            </label>
-                            <textarea
-                              id="rejectionReason"
-                              value={rejectionReason}
-                              onChange={(e) => setRejectionReason(e.target.value)}
-                              rows={2}
-                              className="form-control"
-                              placeholder="Provide detailed reason for rejection..."
-                            />
-                          </div>
+                            <Form.Group className="mb-3">
+                              <Form.Label className="fw-medium">
+                                Rejection Reason (Required if rejecting)
+                              </Form.Label>
+                              <Controller
+                                name="rejectionReason"
+                                control={control}
+                                rules={{
+                                  validate: (value) => {
+                                    // Only validate if we're trying to reject
+                                    return true;
+                                  }
+                                }}
+                                render={({ field }) => (
+                                  <Form.Control
+                                    as="textarea"
+                                    rows={2}
+                                    placeholder="Provide detailed reason for rejection..."
+                                    isInvalid={!!errors.rejectionReason}
+                                    {...field}
+                                  />
+                                )}
+                              />
+                              <Form.Control.Feedback type="invalid">
+                                {errors.rejectionReason?.message}
+                              </Form.Control.Feedback>
+                            </Form.Group>
 
-                          <div className="d-flex justify-content-end gap-2">
-                            <button
-                              onClick={() => handleReject(entry.id)}
-                              disabled={!rejectionReason.trim()}
-                              className="btn btn-danger d-flex align-items-center"
-                            >
-                              <X className="me-1" size={16} />
-                              Reject
-                            </button>
-                            <button
-                              onClick={() => handleApprove(entry.id)}
-                              className="btn btn-success d-flex align-items-center"
-                            >
-                              <Check className="me-1" size={16} />
-                              Approve
-                            </button>
-                          </div>
+                            <div className="d-flex justify-content-end gap-2">
+                              <Button
+                                variant="danger"
+                                disabled={!rejectionReason?.trim()}
+                                onClick={handleSubmit(handleReject)}
+                              >
+                                <X className="me-1" size={16} />
+                                Reject
+                              </Button>
+                              <Button
+                                variant="success"
+                                type="submit"
+                              >
+                                <Check className="me-1" size={16} />
+                                Approve
+                              </Button>
+                            </div>
+                          </Form>
                         </div>
                       )}
 
                       {!canApprove && entry.status === 'pending_approval' && (
-                        <div className="alert alert-warning">
+                        <Alert variant="warning">
                           <div className="d-flex align-items-center">
                             <AlertCircle className="me-2" size={20} />
                             <p className="mb-0">
                               You need checker or admin role to approve reconciliations.
                             </p>
                           </div>
-                        </div>
+                        </Alert>
                       )}
                     </div>
                   )}
@@ -284,7 +319,7 @@ export const ApprovalQueue: React.FC<ApprovalQueueProps> = ({
             })}
           </div>
         )}
-      </div>
-    </div>
+      </Card.Body>
+    </Card>
   );
 };

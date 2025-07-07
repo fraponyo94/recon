@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { Card, Form, Button, Row, Col } from 'react-bootstrap';
+import { useForm, Controller, SubmitHandler } from 'react-hook-form';
 import { Transaction } from '../types';
 import { Plus, X } from 'lucide-react';
 
@@ -7,45 +9,25 @@ interface IndividualTransactionFormProps {
   userRole: string;
 }
 
+interface TransactionFormData {
+  accountId: string;
+  date: string;
+  transId: string;
+  amount: string;
+  description: string;
+  type: 'credit' | 'debit';
+  reference: string;
+  source: 'bank' | 'system';
+}
+
 export const IndividualTransactionForm: React.FC<IndividualTransactionFormProps> = ({
   onAddTransaction,
   userRole
 }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [formData, setFormData] = useState({
-    accountId: '',
-    date: '',
-    transId: '',
-    amount: '',
-    description: '',
-    type: 'credit' as 'credit' | 'debit',
-    reference: '',
-    source: 'bank' as 'bank' | 'system'
-  });
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!formData.accountId || !formData.date || !formData.transId || !formData.amount || !formData.description) {
-      alert('Please fill in all required fields');
-      return;
-    }
-
-    const transaction: Omit<Transaction, 'id' | 'status'> = {
-      accountId: formData.accountId,
-      date: formData.date,
-      transId: formData.transId,
-      amount: parseFloat(formData.amount),
-      description: formData.description,
-      type: formData.type,
-      reference: formData.reference || formData.transId,
-      source: formData.source
-    };
-
-    onAddTransaction(transaction);
-    
-    // Reset form
-    setFormData({
+  
+  const { control, handleSubmit, reset, formState: { errors } } = useForm<TransactionFormData>({
+    defaultValues: {
       accountId: '',
       date: '',
       transId: '',
@@ -54,22 +36,28 @@ export const IndividualTransactionForm: React.FC<IndividualTransactionFormProps>
       type: 'credit',
       reference: '',
       source: 'bank'
-    });
-    
+    }
+  });
+
+  const handleFormSubmit: SubmitHandler<TransactionFormData> = (data) => {
+    const transaction: Omit<Transaction, 'id' | 'status'> = {
+      accountId: data.accountId,
+      date: data.date,
+      transId: data.transId,
+      amount: parseFloat(data.amount),
+      description: data.description,
+      type: data.type,
+      reference: data.reference || data.transId,
+      source: data.source
+    };
+
+    onAddTransaction(transaction);
+    reset();
     setIsOpen(false);
   };
 
   const handleCancel = () => {
-    setFormData({
-      accountId: '',
-      date: '',
-      transId: '',
-      amount: '',
-      description: '',
-      type: 'credit',
-      reference: '',
-      source: 'bank'
-    });
+    reset();
     setIsOpen(false);
   };
 
@@ -77,24 +65,25 @@ export const IndividualTransactionForm: React.FC<IndividualTransactionFormProps>
 
   if (!canAdd) {
     return (
-      <div className="card">
-        <div className="card-body text-center py-4">
+      <Card>
+        <Card.Body className="text-center py-4">
           <p className="text-muted mb-0">
             You need maker or admin role to add individual transactions.
           </p>
-        </div>
-      </div>
+        </Card.Body>
+      </Card>
     );
   }
 
   return (
-    <div className="card">
-      <div className="card-header bg-white">
+    <Card>
+      <Card.Header className="bg-white">
         <div className="d-flex justify-content-between align-items-center">
-          <h5 className="card-title mb-0">Add Individual Transaction</h5>
-          <button
+          <Card.Title className="mb-0">Add Individual Transaction</Card.Title>
+          <Button
+            variant="primary"
             onClick={() => setIsOpen(!isOpen)}
-            className="btn btn-primary d-flex align-items-center"
+            className="d-flex align-items-center"
           >
             {isOpen ? (
               <>
@@ -107,153 +96,228 @@ export const IndividualTransactionForm: React.FC<IndividualTransactionFormProps>
                 Add Transaction
               </>
             )}
-          </button>
+          </Button>
         </div>
-      </div>
+      </Card.Header>
 
       {isOpen && (
-        <form onSubmit={handleSubmit} className="card-body">
-          <div className="row g-3 mb-4">
-            <div className="col-md-6">
-              <label htmlFor="source" className="form-label fw-medium">
-                Transaction Source *
-              </label>
-              <select
-                id="source"
-                value={formData.source}
-                onChange={(e) => setFormData({ ...formData, source: e.target.value as 'bank' | 'system' })}
-                className="form-select"
-                required
+        <Card.Body>
+          <Form onSubmit={handleSubmit(handleFormSubmit)}>
+            <Row className="g-3 mb-4">
+              <Col md={6}>
+                <Form.Group>
+                  <Form.Label className="fw-medium">
+                    Transaction Source *
+                  </Form.Label>
+                  <Controller
+                    name="source"
+                    control={control}
+                    rules={{ required: 'Transaction source is required' }}
+                    render={({ field }) => (
+                      <Form.Select
+                        isInvalid={!!errors.source}
+                        {...field}
+                      >
+                        <option value="bank">Bank Transaction</option>
+                        <option value="system">System Transaction</option>
+                      </Form.Select>
+                    )}
+                  />
+                  <Form.Control.Feedback type="invalid">
+                    {errors.source?.message}
+                  </Form.Control.Feedback>
+                </Form.Group>
+              </Col>
+
+              <Col md={6}>
+                <Form.Group>
+                  <Form.Label className="fw-medium">
+                    Account ID *
+                  </Form.Label>
+                  <Controller
+                    name="accountId"
+                    control={control}
+                    rules={{ required: 'Account ID is required' }}
+                    render={({ field }) => (
+                      <Form.Control
+                        type="text"
+                        placeholder="e.g., ACC-001"
+                        isInvalid={!!errors.accountId}
+                        {...field}
+                      />
+                    )}
+                  />
+                  <Form.Control.Feedback type="invalid">
+                    {errors.accountId?.message}
+                  </Form.Control.Feedback>
+                </Form.Group>
+              </Col>
+
+              <Col md={6}>
+                <Form.Group>
+                  <Form.Label className="fw-medium">
+                    Transaction Date *
+                  </Form.Label>
+                  <Controller
+                    name="date"
+                    control={control}
+                    rules={{ required: 'Transaction date is required' }}
+                    render={({ field }) => (
+                      <Form.Control
+                        type="date"
+                        isInvalid={!!errors.date}
+                        {...field}
+                      />
+                    )}
+                  />
+                  <Form.Control.Feedback type="invalid">
+                    {errors.date?.message}
+                  </Form.Control.Feedback>
+                </Form.Group>
+              </Col>
+
+              <Col md={6}>
+                <Form.Group>
+                  <Form.Label className="fw-medium">
+                    Transaction ID *
+                  </Form.Label>
+                  <Controller
+                    name="transId"
+                    control={control}
+                    rules={{ required: 'Transaction ID is required' }}
+                    render={({ field }) => (
+                      <Form.Control
+                        type="text"
+                        placeholder="e.g., TXN-001"
+                        isInvalid={!!errors.transId}
+                        {...field}
+                      />
+                    )}
+                  />
+                  <Form.Control.Feedback type="invalid">
+                    {errors.transId?.message}
+                  </Form.Control.Feedback>
+                </Form.Group>
+              </Col>
+
+              <Col md={6}>
+                <Form.Group>
+                  <Form.Label className="fw-medium">
+                    Amount *
+                  </Form.Label>
+                  <Controller
+                    name="amount"
+                    control={control}
+                    rules={{ 
+                      required: 'Amount is required',
+                      pattern: {
+                        value: /^\d+(\.\d{1,2})?$/,
+                        message: 'Please enter a valid amount'
+                      },
+                      min: {
+                        value: 0.01,
+                        message: 'Amount must be greater than 0'
+                      }
+                    }}
+                    render={({ field }) => (
+                      <Form.Control
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        placeholder="0.00"
+                        isInvalid={!!errors.amount}
+                        {...field}
+                      />
+                    )}
+                  />
+                  <Form.Control.Feedback type="invalid">
+                    {errors.amount?.message}
+                  </Form.Control.Feedback>
+                </Form.Group>
+              </Col>
+
+              <Col md={6}>
+                <Form.Group>
+                  <Form.Label className="fw-medium">
+                    Transaction Type *
+                  </Form.Label>
+                  <Controller
+                    name="type"
+                    control={control}
+                    rules={{ required: 'Transaction type is required' }}
+                    render={({ field }) => (
+                      <Form.Select
+                        isInvalid={!!errors.type}
+                        {...field}
+                      >
+                        <option value="credit">Credit</option>
+                        <option value="debit">Debit</option>
+                      </Form.Select>
+                    )}
+                  />
+                  <Form.Control.Feedback type="invalid">
+                    {errors.type?.message}
+                  </Form.Control.Feedback>
+                </Form.Group>
+              </Col>
+            </Row>
+
+            <Form.Group className="mb-3">
+              <Form.Label className="fw-medium">
+                Description *
+              </Form.Label>
+              <Controller
+                name="description"
+                control={control}
+                rules={{ required: 'Description is required' }}
+                render={({ field }) => (
+                  <Form.Control
+                    type="text"
+                    placeholder="Transaction description"
+                    isInvalid={!!errors.description}
+                    {...field}
+                  />
+                )}
+              />
+              <Form.Control.Feedback type="invalid">
+                {errors.description?.message}
+              </Form.Control.Feedback>
+            </Form.Group>
+
+            <Form.Group className="mb-4">
+              <Form.Label className="fw-medium">
+                Reference (Optional)
+              </Form.Label>
+              <Controller
+                name="reference"
+                control={control}
+                render={({ field }) => (
+                  <Form.Control
+                    type="text"
+                    placeholder="Reference number or code"
+                    {...field}
+                  />
+                )}
+              />
+            </Form.Group>
+
+            <div className="d-flex justify-content-end gap-2">
+              <Button
+                variant="outline-secondary"
+                onClick={handleCancel}
               >
-                <option value="bank">Bank Transaction</option>
-                <option value="system">System Transaction</option>
-              </select>
-            </div>
-
-            <div className="col-md-6">
-              <label htmlFor="accountId" className="form-label fw-medium">
-                Account ID *
-              </label>
-              <input
-                type="text"
-                id="accountId"
-                value={formData.accountId}
-                onChange={(e) => setFormData({ ...formData, accountId: e.target.value })}
-                className="form-control"
-                placeholder="e.g., ACC-001"
-                required
-              />
-            </div>
-
-            <div className="col-md-6">
-              <label htmlFor="date" className="form-label fw-medium">
-                Transaction Date *
-              </label>
-              <input
-                type="date"
-                id="date"
-                value={formData.date}
-                onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                className="form-control"
-                required
-              />
-            </div>
-
-            <div className="col-md-6">
-              <label htmlFor="transId" className="form-label fw-medium">
-                Transaction ID *
-              </label>
-              <input
-                type="text"
-                id="transId"
-                value={formData.transId}
-                onChange={(e) => setFormData({ ...formData, transId: e.target.value })}
-                className="form-control"
-                placeholder="e.g., TXN-001"
-                required
-              />
-            </div>
-
-            <div className="col-md-6">
-              <label htmlFor="amount" className="form-label fw-medium">
-                Amount *
-              </label>
-              <input
-                type="number"
-                id="amount"
-                step="0.01"
-                min="0"
-                value={formData.amount}
-                onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-                className="form-control"
-                placeholder="0.00"
-                required
-              />
-            </div>
-
-            <div className="col-md-6">
-              <label htmlFor="type" className="form-label fw-medium">
-                Transaction Type *
-              </label>
-              <select
-                id="type"
-                value={formData.type}
-                onChange={(e) => setFormData({ ...formData, type: e.target.value as 'credit' | 'debit' })}
-                className="form-select"
-                required
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                type="submit"
               >
-                <option value="credit">Credit</option>
-                <option value="debit">Debit</option>
-              </select>
+                Add Transaction
+              </Button>
             </div>
-          </div>
-
-          <div className="mb-3">
-            <label htmlFor="description" className="form-label fw-medium">
-              Description *
-            </label>
-            <input
-              type="text"
-              id="description"
-              value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              className="form-control"
-              placeholder="Transaction description"
-              required
-            />
-          </div>
-
-          <div className="mb-4">
-            <label htmlFor="reference" className="form-label fw-medium">
-              Reference (Optional)
-            </label>
-            <input
-              type="text"
-              id="reference"
-              value={formData.reference}
-              onChange={(e) => setFormData({ ...formData, reference: e.target.value })}
-              className="form-control"
-              placeholder="Reference number or code"
-            />
-          </div>
-
-          <div className="d-flex justify-content-end gap-2">
-            <button
-              type="button"
-              onClick={handleCancel}
-              className="btn btn-outline-secondary"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="btn btn-primary"
-            >
-              Add Transaction
-            </button>
-          </div>
-        </form>
+          </Form>
+        </Card.Body>
       )}
-    </div>
+    </Card>
   );
 };

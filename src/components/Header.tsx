@@ -1,4 +1,5 @@
 import React from 'react';
+import { Button, Form } from 'react-bootstrap';
 import { User, Settings, LogOut } from 'lucide-react';
 import { User as UserType, UserRole } from '../types';
 
@@ -33,16 +34,16 @@ export const Header: React.FC<HeaderProps> = ({ currentUser, onRoleChange, onLog
           <div className="d-flex align-items-center">
             <div className="d-flex align-items-center me-3">
               <span className="small text-muted me-2">Role:</span>
-              <select
+              <Form.Select
                 value={currentUser.role}
                 onChange={(e) => onRoleChange(e.target.value as UserRole)}
-                className="form-select form-select-sm"
+                size="sm"
                 style={{ width: 'auto' }}
               >
                 <option value="maker">Maker</option>
                 <option value="checker">Checker</option>
                 <option value="admin">Admin</option>
-              </select>
+              </Form.Select>
             </div>
             
             <div className="d-flex align-items-center me-3">
@@ -50,13 +51,14 @@ export const Header: React.FC<HeaderProps> = ({ currentUser, onRoleChange, onLog
               <span className="small fw-medium">{currentUser.name}</span>
             </div>
             
-            <button
+            <Button
+              variant="outline-secondary"
+              size="sm"
               onClick={onLogout}
-              className="btn btn-outline-secondary btn-sm"
               title="Logout"
             >
               <LogOut size={16} />
-            </button>
+            </Button>
           </div>
         </div>
       </div>

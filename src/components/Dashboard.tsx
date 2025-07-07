@@ -1,4 +1,5 @@
 import React from 'react';
+import { Card, Row, Col, Alert, Badge } from 'react-bootstrap';
 import { CheckCircle, Clock, AlertCircle, FileText, Upload, Users, XCircle, MessageCircle } from 'lucide-react';
 import { ReconciliationEntry, Transaction, FileUpload } from '../types';
 
@@ -73,16 +74,16 @@ export const Dashboard: React.FC<DashboardProps> = ({
     }
   ];
 
-  const getStatusBadgeClass = (status: string) => {
+  const getStatusBadgeVariant = (status: string) => {
     switch (status) {
       case 'approved':
-        return 'badge bg-success';
+        return 'success';
       case 'rejected':
-        return 'badge bg-danger';
+        return 'danger';
       case 'pending_approval':
-        return 'badge bg-warning text-dark';
+        return 'warning';
       default:
-        return 'badge bg-secondary';
+        return 'secondary';
     }
   };
 
@@ -101,34 +102,34 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
   return (
     <div className="container-fluid">
-      <div className="row g-4 mb-4">
+      <Row className="g-4 mb-4">
         {stats.map((stat) => (
-          <div key={stat.title} className="col-md-6 col-lg-4">
-            <div className={`card h-100 border-0 ${stat.bgLight}`}>
-              <div className="card-body">
+          <Col key={stat.title} md={6} lg={4}>
+            <Card className={`h-100 border-0 ${stat.bgLight}`}>
+              <Card.Body>
                 <div className="d-flex justify-content-between align-items-center">
                   <div>
-                    <p className="card-text small text-muted mb-1">{stat.title}</p>
-                    <h3 className="card-title mb-0 fw-bold">{stat.value}</h3>
+                    <Card.Text className="small text-muted mb-1">{stat.title}</Card.Text>
+                    <Card.Title className="mb-0 fw-bold h3">{stat.value}</Card.Title>
                   </div>
                   <div className={`p-3 rounded-circle ${stat.bgColor} bg-opacity-10`}>
                     <stat.icon className={stat.color} size={24} />
                   </div>
                 </div>
-              </div>
-            </div>
-          </div>
+              </Card.Body>
+            </Card>
+          </Col>
         ))}
-      </div>
+      </Row>
 
-      <div className="row g-4">
+      <Row className="g-4">
         {/* Recent Reconciliation Activity */}
-        <div className="col-lg-6">
-          <div className="card h-100">
-            <div className="card-header bg-white">
-              <h5 className="card-title mb-0">Recent Reconciliation Activity</h5>
-            </div>
-            <div className="card-body">
+        <Col lg={6}>
+          <Card className="h-100">
+            <Card.Header className="bg-white">
+              <Card.Title className="mb-0">Recent Reconciliation Activity</Card.Title>
+            </Card.Header>
+            <Card.Body>
               <div className="d-flex flex-column gap-3">
                 {reconciliationEntries.slice(0, 5).map((entry) => (
                   <div key={entry.id} className="d-flex justify-content-between align-items-center p-3 bg-light rounded">
@@ -155,9 +156,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
                         )}
                       </div>
                     </div>
-                    <span className={getStatusBadgeClass(entry.status)}>
+                    <Badge bg={getStatusBadgeVariant(entry.status)}>
                       {entry.status.replace('_', ' ').toUpperCase()}
-                    </span>
+                    </Badge>
                   </div>
                 ))}
                 {reconciliationEntries.length === 0 && (
@@ -166,17 +167,17 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   </div>
                 )}
               </div>
-            </div>
-          </div>
-        </div>
+            </Card.Body>
+          </Card>
+        </Col>
 
         {/* Recent File Upload Activity */}
-        <div className="col-lg-6">
-          <div className="card h-100">
-            <div className="card-header bg-white">
-              <h5 className="card-title mb-0">Recent File Upload Activity</h5>
-            </div>
-            <div className="card-body">
+        <Col lg={6}>
+          <Card className="h-100">
+            <Card.Header className="bg-white">
+              <Card.Title className="mb-0">Recent File Upload Activity</Card.Title>
+            </Card.Header>
+            <Card.Body>
               <div className="d-flex flex-column gap-3">
                 {fileUploads.slice(0, 5).map((file) => (
                   <div key={file.id} className="d-flex justify-content-between align-items-center p-3 bg-light rounded">
@@ -203,9 +204,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
                         )}
                       </div>
                     </div>
-                    <span className={getStatusBadgeClass(file.status)}>
+                    <Badge bg={getStatusBadgeVariant(file.status)}>
                       {file.status.replace('_', ' ').toUpperCase()}
-                    </span>
+                    </Badge>
                   </div>
                 ))}
                 {fileUploads.length === 0 && (
@@ -214,10 +215,10 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   </div>
                 )}
               </div>
-            </div>
-          </div>
-        </div>
-      </div>
+            </Card.Body>
+          </Card>
+        </Col>
+      </Row>
     </div>
   );
 };

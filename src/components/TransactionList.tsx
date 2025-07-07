@@ -1,4 +1,5 @@
 import React from 'react';
+import { Card, Badge } from 'react-bootstrap';
 import { Transaction } from '../types';
 import { ArrowUpRight, ArrowDownRight } from 'lucide-react';
 
@@ -15,23 +16,23 @@ export const TransactionList: React.FC<TransactionListProps> = ({
   selectedTransaction,
   onTransactionSelect
 }) => {
-  const getStatusBadgeClass = (status: string) => {
+  const getStatusBadgeVariant = (status: string) => {
     switch (status) {
       case 'reconciled':
-        return 'badge bg-success';
+        return 'success';
       case 'pending':
-        return 'badge bg-warning text-dark';
+        return 'warning';
       default:
-        return 'badge bg-secondary';
+        return 'secondary';
     }
   };
 
   return (
-    <div className="card h-100">
-      <div className="card-header bg-white">
-        <h5 className="card-title mb-0">{title}</h5>
-      </div>
-      <div className="card-body p-0">
+    <Card className="h-100">
+      <Card.Header className="bg-white">
+        <Card.Title className="mb-0">{title}</Card.Title>
+      </Card.Header>
+      <Card.Body className="p-0">
         <div className="list-group list-group-flush">
           {transactions.map((transaction) => (
             <div
@@ -66,9 +67,9 @@ export const TransactionList: React.FC<TransactionListProps> = ({
                   }`}>
                     {transaction.type === 'credit' ? '+' : '-'}${transaction.amount.toFixed(2)}
                   </p>
-                  <span className={getStatusBadgeClass(transaction.status)}>
+                  <Badge bg={getStatusBadgeVariant(transaction.status)}>
                     {transaction.status.toUpperCase()}
-                  </span>
+                  </Badge>
                 </div>
               </div>
             </div>
@@ -79,7 +80,7 @@ export const TransactionList: React.FC<TransactionListProps> = ({
             </div>
           )}
         </div>
-      </div>
-    </div>
+      </Card.Body>
+    </Card>
   );
 };
